@@ -1,0 +1,9 @@
+flask
+flask-cors
+transformers
+torch
+lime
+numpy
+vaderSentiment
+nrclex
+requests

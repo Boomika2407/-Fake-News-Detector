@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake News Detection - LIME Explanations</title>
+    <style>
+        :root {
+            --carbon-black: #1f2421;
+            --stormy-teal: #216869;
+            --seaweed: #49a078;
+            --muted-teal: #9cc5a1;
+            --alabaster-grey: #dce1de;
+            --bg-page: #121614;
+            --border-color: #2b332f;
+            --bg-card: #282f2b;
+            --text-primary: #ffffff;
+            --text-secondary: #a9b3af;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--bg-page) 0%, #161c19 100%);
+            color: var(--alabaster-grey);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 40px auto;
+            background: var(--carbon-black);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--carbon-black) 0%, var(--stormy-teal) 100%);
+            color: var(--alabaster-grey);
+            padding: 35px 30px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 0.95em;
+            color: var(--alabaster-grey);
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        .input-section label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: var(--alabaster-grey);
+        }
+
+        textarea {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-card);
+            border: 2px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 6px;
+            font-size: 1em;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 150px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--seaweed);
+            box-shadow: 0 0 8px rgba(73, 160, 120, 0.25);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: var(--stormy-teal);
+            color: var(--alabaster-grey);
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.1s;
+        }
+
+        button:hover {
+            background: var(--seaweed);
+            color: var(--text-primary);
+        }
+
+        button:disabled {
+            background: #4a544f;
+            color: var(--text-secondary);
+            cursor: not-allowed;
+        }
+
+        .threshold-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .threshold-control label {
+            color: var(--alabaster-grey);
+        }
+
+        .threshold-control input {
+            width: 60px;
+            padding: 8px;
+            background: var(--bg-card);
+            border: 2px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 4px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--seaweed);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .prediction-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            color: var(--alabaster-grey);
+        }
+
+        .prediction-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .prediction-label {
+            font-size: 1.5em;
+            font-weight: 700;
+            padding: 8px 16px;
+            border-radius: 6px;
+            color: white;
+        }
+
+        .prediction-label.fake {
+            background: #c0392b;
+        }
+
+        .prediction-label.true {
+            background: var(--seaweed);
+        }
+
+        .confidence {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .confidence-bar {
+            width: 200px;
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: var(--seaweed);
+            transition: width 0.3s;
+        }
+
+        .confidence-text {
+            font-weight: 600;
+            min-width: 50px;
+            color: var(--text-primary);
+        }
+
+        .explanation-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .explanation-section h3 {
+            margin-bottom: 15px;
+            color: var(--text-primary);
+            font-size: 1.1em;
+        }
+
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .analysis-card {
+            background: var(--carbon-black);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 14px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+        }
+
+        .analysis-card h4 {
+            font-size: 0.95em;
+            margin-bottom: 8px;
+            color: var(--muted-teal);
+        }
+
+        .analysis-metric {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 0.92em;
+            margin: 6px 0;
+            color: var(--alabaster-grey);
+        }
+
+        .analysis-interpretation {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: rgba(33, 104, 105, 0.1);
+            color: var(--alabaster-grey);
+            font-size: 0.92em;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            border: 1px solid rgba(156, 197, 161, 0.15);
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+
+        .feature-bar {
+            flex: 1;
+            height: 24px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .feature-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 0.85em;
+            font-weight: 600;
+            color: white;
+        }
+
+        .feature-fill.positive {
+            background: #c0392b;
+        }
+
+        .feature-fill.negative {
+            background: var(--seaweed);
+        }
+
+        .feature-name {
+            min-width: 150px;
+            font-weight: 500;
+            word-break: break-word;
+            color: var(--alabaster-grey);
+        }
+
+        .error {
+            background: rgba(192, 57, 43, 0.15);
+            color: #f19f9f;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            border: 1px solid rgba(192, 57, 43, 0.3);
+        }
+
+        .success-message {
+            background: rgba(73, 160, 120, 0.15);
+            color: var(--muted-teal);
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            border: 1px solid rgba(73, 160, 120, 0.3);
+        }
+
+        .info-box {
+            background: rgba(33, 104, 105, 0.15);
+            padding: 12px;
+            border-left: 4px solid var(--stormy-teal);
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: var(--alabaster-grey);
+            line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            .prediction-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .feature-name {
+                min-width: 100px;
+            }
+        }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="bg-canvas"></canvas>
+    <div class="container">
+        <div class="header">
+            <h1>📰 Fake News Detector</h1>
+            <p>Enter news text to get an AI prediction with explainable LIME analysis</p>
+            <div id="connectionStatus" style="display:inline-flex; align-items:center; gap:8px; margin-top:14px; padding:6px 14px; border-radius:20px; font-size:0.85em; font-weight:600; background:rgba(0,0,0,0.35); border:1px solid #3a4640;">
+                <span id="statusDot" style="width:9px; height:9px; border-radius:50%; background:#f39c12; display:inline-block; transition:all 0.3s ease;"></span>
+                <span id="statusText" style="color:var(--text-secondary); transition:color 0.3s ease;">Checking backend connection...</span>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="info-box">
+                ℹ️ <strong>Writing Style Analysis:</strong> This system uses a fine-tuned deep learning LLM (BERT) to perform detailed writing style analysis. It decides whether the news is genuine or fake based on these stylistic patterns, and uses LIME (Local Interpretable Model-agnostic Explanations) to highlight the specific words that influenced the decision.
+            </div>
+
+            <div class="input-section">
+                <label for="newsText">Paste your news article here:</label>
+                <textarea id="newsText" placeholder="Enter news article text..."></textarea>
+
+                <div class="controls">
+                    <button onclick="analyzeNews()">🔍 Analyze News</button>
+                    <button onclick="clearAll()">🔄 Clear</button>
+                    <div class="threshold-control">
+                        <label for="threshold">Explanation Threshold:</label>
+                        <input type="number" id="threshold" min="0" max="1" step="0.1" value="0.5">
+                    </div>
+                </div>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Analyzing news and generating explanations...</p>
+            </div>
+
+            <div class="results" id="results"></div>
+        </div>
+    </div>
+
+    <script>
+        // Dynamic API URL: use same host when served via nginx/Docker, fallback to localhost for local dev
+        const isFileProtocol = window.location.protocol === 'file:';
+        let API_URL = isFileProtocol ? 'http://localhost:5001' : window.location.origin;
+        const CANDIDATE_PORTS = ['5001', '5000'];
+
+        async function checkServerHealth() {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+
+            // When served via nginx/Docker, use same-origin — no port scanning needed
+            const portsToTry = isFileProtocol ? CANDIDATE_PORTS : [''];
+
+            for (const port of portsToTry) {
+                try {
+                    const testUrl = isFileProtocol ? `http://localhost:${port}` : window.location.origin;
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 2000);
+                    const res = await fetch(`${testUrl}/health`, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (res.ok) {
+                        API_URL = testUrl;
+                        if (statusDot && statusText) {
+                            statusDot.style.background = '#2ecc71';
+                            statusDot.style.boxShadow = '0 0 8px #2ecc71';
+                            statusText.textContent = isFileProtocol ? `Backend Online (Port ${port})` : `Backend Online`;
+                            statusText.style.color = '#9cc5a1';
+                        }
+                        return true;
+                    }
+                } catch (e) {
+                    // Try next candidate
+                }
+            }
+
+            if (statusDot && statusText) {
+                statusDot.style.background = '#e74c3c';
+                statusDot.style.boxShadow = '0 0 8px #e74c3c';
+                statusText.textContent = 'Backend Offline - Start server to analyze';
+                statusText.style.color = '#ff8585';
+            }
+            return false;
+        }
+
+        function parseMarkdown(text) {
+            if (!text) return '';
+            // Convert **bold** to <strong>
+            let html = text.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#9cc5a1;">$1</strong>');
+            // Convert double newlines to paragraph breaks
+            html = html.split(/\n\n+/).map(p => `<p style="margin-bottom:10px;">${p.trim()}</p>`).join('');
+            return html;
+        }
+
+        async function analyzeNews() {
+            const text = document.getElementById('newsText').value.trim();
+            const threshold = parseFloat(document.getElementById('threshold').value);
+
+            if (!text) {
+                alert('Please enter some news text');
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+
+            try {
+                // Ensure we use active server port
+                await checkServerHealth();
+
+                const response = await fetch(`${API_URL}/predict`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        threshold: threshold
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server returned HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayResults(data);
+
+            } catch (error) {
+                console.error('Error:', error);
+                displayError(`Connection error: ${error.message}`);
+                checkServerHealth();
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            if (!data.success) {
+                displayError(data.error || 'Unknown error');
+                return;
+            }
+
+            const isFake = data.prediction_label === 1;
+            const predictionClass = isFake ? 'fake' : 'true';
+
+            let html = `
+                <div class="prediction-card">
+                    <div class="prediction-header">
+                        <div class="prediction-label ${predictionClass}">
+                            ${data.prediction}
+                        </div>
+                        <div class="confidence">
+                            <span class="confidence-text">${(data.confidence * 100).toFixed(1)}%</span>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" style="width: ${data.confidence * 100}%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 15px; font-size: 0.9em; color: #666;">
+                        <p><strong>Probability True:</strong> ${(data.prob_true * 100).toFixed(2)}%</p>
+                        <p><strong>Probability Fake:</strong> ${(data.prob_fake * 100).toFixed(2)}%</p>
+                    </div>
+            `;
+
+            // Add explanation if available
+            if (data.explanation) {
+                if (data.explanation.error) {
+                    html += `
+                        <div class="explanation-section">
+                            <div class="error">⚠️ ${data.explanation.error}</div>
+                        </div>
+                    `;
+                } else if (data.explanation.skipped) {
+                    html += `
+                        <div class="explanation-section">
+                            <div class="info-box">${data.explanation.skipped}</div>
+                        </div>
+                    `;
+                } else if (data.explanation.method === 'LIME' && data.explanation.features) {
+                    html += `
+                        <div class="explanation-section">
+                            <h3>🔍 LIME Feature Explanations</h3>
+                            <p style="margin-bottom: 15px; font-size: 0.9em; color: #666;">
+                                ${data.explanation.interpretation}
+                            </p>
+                            <div>
+                    `;
+
+                    const absWeights = data.explanation.features.map(f => Math.abs(f.weight));
+                    const maxAbsWeight = Math.max(...absWeights, 1e-9);
+
+                    data.explanation.features.forEach((feature, idx) => {
+                        const absWeight = Math.abs(feature.weight);
+                        const normalizedWidth = Math.max((absWeight / maxAbsWeight) * 100, 6);
+                        const fillClass = feature.direction === 'supports_fake' ? 'positive' : 'negative';
+                        const direction = feature.direction === 'supports_fake' ? '→ FAKE' : '→ TRUE';
+
+                        html += `
+                            <div class="feature-item">
+                                <div class="feature-name">"${feature.feature}"</div>
+                                <div class="feature-bar">
+                                    <div class="feature-fill ${fillClass}" style="width: ${normalizedWidth.toFixed(2)}%; transition-delay: ${(idx * 40)}ms;">
+                                        ${feature.weight.toFixed(3)}
+                                    </div>
+                                </div>
+                                <div style="min-width: 60px; text-align: right; font-size: 0.85em; font-weight: 500;">
+                                    ${direction}
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            if (data.linguistic_analysis) {
+                const linguistic = data.linguistic_analysis;
+                html += `
+                    <div class="explanation-section">
+                        <h3>🧩 Linguistic Analysis</h3>
+                        <p style="margin-bottom: 10px; font-size: 0.9em; color: #666;">
+                            Heuristic features computed without any LLM. These are interpretive signals, not direct model inputs.
+                        </p>
+                        <div class="analysis-grid">
+                            <div class="analysis-card">
+                                <h4>A. Emotion</h4>
+                                <div class="analysis-metric"><span>Anger</span><span>${(linguistic.emotion.anger ?? 0).toFixed(3)}</span></div>
+                                <div class="analysis-metric"><span>Fear</span><span>${(linguistic.emotion.fear ?? 0).toFixed(3)}</span></div>
+                                <div class="analysis-metric"><span>Joy</span><span>${(linguistic.emotion.joy ?? 0).toFixed(3)}</span></div>
+                                <div class="analysis-interpretation">👉 ${linguistic.emotion.interpretation}</div>
+                            </div>
+                            <div class="analysis-card">
+                                <h4>B. Sentiment & Subjectivity</h4>
+                                <div class="analysis-metric"><span>Polarity</span><span>${Number(linguistic.sentiment_subjectivity.polarity).toFixed(3)}</span></div>
+                                <div class="analysis-metric"><span>Subjectivity</span><span>${Number(linguistic.sentiment_subjectivity.subjectivity).toFixed(3)}</span></div>
+                                <div class="analysis-interpretation">👉 ${linguistic.sentiment_subjectivity.interpretation}</div>
+                            </div>
+                            <div class="analysis-card">
+                                <h4>C. Readability / Formality</h4>
+                                <div class="analysis-metric"><span>Flesch score</span><span>${Number(linguistic.readability_formality.flesch_score).toFixed(1)}</span></div>
+                                <div class="analysis-metric"><span>Avg sentence length</span><span>${Number(linguistic.readability_formality.avg_sentence_length).toFixed(1)}</span></div>
+                                <div class="analysis-interpretation">👉 ${linguistic.readability_formality.interpretation}</div>
+                            </div>
+                            <div class="analysis-card">
+                                <h4>D. Structural Signals</h4>
+                                <div class="analysis-metric"><span>Pronoun ratio</span><span>${Number(linguistic.structural_signals.pronoun_ratio).toFixed(3)}</span></div>
+                                <div class="analysis-metric"><span>Noun ratio</span><span>${Number(linguistic.structural_signals.noun_ratio).toFixed(3)}</span></div>
+                                <div class="analysis-metric"><span>Named entities</span><span>${linguistic.structural_signals.named_entities_count}</span></div>
+                                <div class="analysis-metric"><span>Repetition ratio</span><span>${Number(linguistic.structural_signals.repetition_ratio).toFixed(3)}</span></div>
+                                <div class="analysis-interpretation">👉 ${linguistic.structural_signals.interpretation}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 18px; background: linear-gradient(135deg, #1a2820 0%, #1e2e28 100%); border: 1px solid #3a6b55; border-left: 4px solid #49a078; border-radius: 10px; padding: 20px 22px;">
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                                <span style="font-size:1.2em;">🧠</span>
+                                <strong style="color:#9cc5a1; font-size:1em; letter-spacing:0.5px;">Combined Insight</strong>
+                            </div>
+                            <div style="color:#dce1de; font-size:0.93em; line-height:1.75;">${parseMarkdown(linguistic.combined_insight)}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `</div>`;
+            resultsDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+
+        function displayError(message) {
+            const resultsDiv = document.getElementById('results');
+            const isConnectionError = message.toLowerCase().includes('failed to fetch') || 
+                                     message.toLowerCase().includes('connection') ||
+                                     message.toLowerCase().includes('network');
+
+            let extraHelp = '';
+            if (isConnectionError) {
+                extraHelp = `
+                    <div style="margin-top:14px; padding:14px; background:rgba(0,0,0,0.3); border-radius:8px; font-size:0.9em; line-height:1.6; text-align:left; border:1px solid #442a2a;">
+                        <strong style="color:#ff9e9e;">🛠️ How to resolve backend connection:</strong><br>
+                        1. Open your terminal in the project folder: <code>fake_news_detector</code><br>
+                        2. Start the API server:<br>
+                        <pre style="background:#121614; padding:8px 12px; border-radius:6px; margin:8px 0; color:#49a078; font-family:Consolas, monospace;">python lime_api_server.py --port 5001</pre>
+                        3. Once the terminal displays <em>"Running on http://127.0.0.1:5001"</em>, click the button below:
+                        <div style="margin-top:12px;">
+                            <button onclick="checkServerHealth().then(ok => { if(ok) analyzeNews(); })" style="padding:8px 16px; font-size:0.9em; background:var(--seaweed); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">🔄 Retry Connection</button>
+                        </div>
+                    </div>
+                `;
+            }
+            resultsDiv.innerHTML = `<div class="error">❌ <strong>Error:</strong> ${message}${extraHelp}</div>`;
+            resultsDiv.style.display = 'block';
+        }
+
+        function clearAll() {
+            document.getElementById('newsText').value = '';
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        // Allow Enter+Cmd/Ctrl to submit
+        document.getElementById('newsText').addEventListener('keydown', function (e) {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                analyzeNews();
+            }
+        });
+
+        // Test connection on load & periodically
+        window.addEventListener('load', () => {
+            checkServerHealth();
+            setInterval(checkServerHealth, 5000);
+        });
+    </script>
+
+    <!-- Moving background mesh animation -->
+    <script>
+        (function() {
+            const canvas = document.getElementById('bg-canvas');
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            const connectionDistance = 120;
+            
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                initParticles();
+            }
+            
+            class Particle {
+                constructor() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.vx = (Math.random() - 0.5) * 0.4;
+                    this.vy = (Math.random() - 0.5) * 0.4;
+                    this.radius = Math.random() * 1.5 + 1.5;
+                }
+                
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    
+                    if (this.x < 0 || this.x > canvas.width) this.vx = -this.vx;
+                    if (this.y < 0 || this.y > canvas.height) this.vy = -this.vy;
+                }
+                
+                draw() {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(156, 197, 161, 0.25)';
+                    ctx.fill();
+                }
+            }
+            
+            function initParticles() {
+                particles = [];
+                const density = Math.min(Math.floor((canvas.width * canvas.height) / 15000), 80);
+                for (let i = 0; i < density; i++) {
+                    particles.push(new Particle());
+                }
+            }
+            
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                for (let i = 0; i < particles.length; i++) {
+                    particles[i].update();
+                    particles[i].draw();
+                }
+                
+                for (let i = 0; i < particles.length; i++) {
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const dx = particles[i].x - particles[j].x;
+                        const dy = particles[i].y - particles[j].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (dist < connectionDistance) {
+                            const opacity = (1 - dist / connectionDistance) * 0.12;
+                            ctx.beginPath();
+                            ctx.moveTo(particles[i].x, particles[i].y);
+                            ctx.lineTo(particles[j].x, particles[j].y);
+                            ctx.strokeStyle = `rgba(33, 104, 105, ${opacity})`;
+                            ctx.lineWidth = 0.8;
+                            ctx.stroke();
+                        }
+                    }
+                }
+                
+                requestAnimationFrame(animate);
+            }
+            
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+            animate();
+        })();
+    </script>
+</body>
+</html>

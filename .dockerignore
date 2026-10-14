@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+*.egg-info/
+
+# Large model files (downloaded at runtime from HuggingFace)
+bert_welfake_model/
+roberta_welfake_model/
+*.bin
+*.safetensors
+*.pt
+*.ckpt
+
+# Data files
+*.csv
+*.json.gz
+
+# Notebooks
+*.ipynb
+
+# Images / reports
+*.png
+*.pdf
+
+# Scratch
+scratch/
+
+# Nginx config (mounted as volume)
+nginx/
+
+# Frontend (served by nginx container)
+lime_web_frontend.html

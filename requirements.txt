@@ -1,0 +1,30 @@
+flask>=2.3.0
+flask-cors>=4.0.0
+transformers>=4.30.0
+torch>=2.0.0
+lime>=0.2.0
+requests>=2.31.0
+pandas>=2.0.0
+numpy>=1.24.0
+pillow>=9.0.0
+vaderSentiment>=3.3.2
+nrclex>=3.0.0
+
+# Optional: for production deployment
+gunicorn>=21.0.0
+python-dotenv>=1.0.0
+
+# Optional: for Streamlit dashboard
+streamlit>=1.24.0
+
+# Optional: for FastAPI alternative
+fastapi>=0.100.0
+uvicorn>=0.24.0
+
+# Optional: for monitoring
+prometheus-flask-exporter>=0.22.0
+prometheus-client>=0.17.0
+
+# Optional: for async processing
+celery>=5.3.0
+redis>=5.0.0

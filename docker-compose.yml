@@ -1,0 +1,58 @@
+
+services:
+
+  # ─────────────────────────────────────────────
+  # Flask API — RoBERTa + LIME backend
+  # ─────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fake_news_api
+    restart: unless-stopped
+    ports:
+      - "5001:5001"        # Also exposed directly for dev/testing
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TRANSFORMERS_CACHE=/app/.cache/huggingface
+    volumes:
+      - hf_cache:/app/.cache/huggingface   # Persist downloaded model across restarts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s   # Give model time to download on first run
+    networks:
+      - fake_news_net
+
+  # ─────────────────────────────────────────────
+  # Nginx — Serves frontend + reverse proxies API
+  # ─────────────────────────────────────────────
+  frontend:
+    image: nginx:alpine
+    container_name: fake_news_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"            # Public HTTP port — access via http://<your-ip>
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./lime_web_frontend.html:/usr/share/nginx/html/lime_web_frontend.html:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - fake_news_net
+
+# ─────────────────────────────────────────────
+# Shared network
+# ─────────────────────────────────────────────
+networks:
+  fake_news_net:
+    driver: bridge
+
+# ─────────────────────────────────────────────
+# Named volume for HuggingFace model cache
+# ─────────────────────────────────────────────
+volumes:
+  hf_cache:
