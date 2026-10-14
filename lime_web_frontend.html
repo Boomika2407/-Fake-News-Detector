@@ -449,28 +449,29 @@
 
     <script>
         // ── API URL Configuration ────────────────────────────────────────────────
-        // EC2 backend public IP — update this if your EC2 IP changes
+        // EC2 backend direct URL (used only for local file:// opening)
         const EC2_API = 'http://100.53.236.252:5001';
 
         const isFileProtocol = window.location.protocol === 'file:';
         const isEC2Host = window.location.hostname === '100.53.236.252';
 
-        // If opened from EC2 nginx → use same-origin (nginx proxies /api → :5001)
-        // If opened from Vercel or file → point directly to EC2
-        let API_URL = isEC2Host ? window.location.origin : EC2_API;
+        // - Local file:// → direct to EC2 (user must allow mixed content or use EC2 URL)
+        // - EC2 nginx (port 80) → same-origin, nginx reverse proxies to :5001
+        // - Vercel (https) → relative URL '', Vercel proxy forwards /health & /predict to EC2
+        let API_URL = isFileProtocol ? EC2_API : '';
         const CANDIDATE_PORTS = ['5001', '5000'];
 
         async function checkServerHealth() {
             const statusDot = document.getElementById('statusDot');
             const statusText = document.getElementById('statusText');
 
-            // When served via nginx/Docker on EC2, use same-origin — no port scanning needed
-            // When served via Vercel or file, ping EC2 directly
-            const portsToTry = isEC2Host ? [''] : (isFileProtocol ? CANDIDATE_PORTS : ['']);
+            // When on Vercel or EC2 nginx → use relative path '' (proxy handles it)
+            // When opening as local file → try localhost ports directly
+            const portsToTry = isFileProtocol ? CANDIDATE_PORTS : [''];
 
             for (const port of portsToTry) {
                 try {
-                    const testUrl = isFileProtocol ? `http://localhost:${port}` : (isEC2Host ? window.location.origin : EC2_API);
+                    const testUrl = isFileProtocol ? `http://localhost:${port}` : '';
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 2000);
                     const res = await fetch(`${testUrl}/health`, { signal: controller.signal });

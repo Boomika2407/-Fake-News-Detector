@@ -8,6 +8,14 @@
   ],
   "routes": [
     {
+      "src": "/health",
+      "dest": "http://100.53.236.252:5001/health"
+    },
+    {
+      "src": "/predict",
+      "dest": "http://100.53.236.252:5001/predict"
+    },
+    {
       "src": "/",
       "dest": "/lime_web_frontend.html"
     }
