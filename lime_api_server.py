@@ -36,10 +36,13 @@ DEVICE = torch.device("mps" if torch.backends.mps.is_available() else
                       "cuda" if torch.cuda.is_available() else "cpu")
 MAX_TEXT_LENGTH = 15000  # Truncate texts longer than this
 LIME_NUM_FEATURES = 10  # Number of top features to explain
-LIME_NUM_SAMPLES = 150  # LIME perturbation samples (lower = faster/lighter)
+LIME_NUM_SAMPLES = 50   # Reduced from 150 → saves ~3× RAM on t2.micro (1 GB)
 ENABLE_CACHING = True  # Cache LIME explainer initialization
 DEFAULT_PORT = 5001  # Aligned with frontend and README
 DEFAULT_HOST = '0.0.0.0'  # Listen on all interfaces
+
+# ── t2.micro / low-RAM optimizations ─────────────────────────────────────────
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")  # No fork overhead
 
 vader_analyzer = SentimentIntensityAnalyzer()
 
@@ -295,8 +298,13 @@ def initialize_models():
 
     print(f"[INFO] Loading model '{MODEL_DIR}' from HuggingFace Hub (will download on first run)...")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
-    model = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR).to(DEVICE)
+    # low_cpu_mem_usage=True loads weights shard-by-shard → halves peak RAM during load
+    model = AutoModelForSequenceClassification.from_pretrained(
+        MODEL_DIR,
+        low_cpu_mem_usage=True   # critical for t2.micro (1 GB RAM)
+    ).to(DEVICE)
     model.eval()
+    gc.collect()  # Free loader buffers immediately after model is loaded
     print(f"[INFO] Model loaded. Using device: {DEVICE}")
 
     print("[INFO] Initializing LIME explainer...")
@@ -311,7 +319,7 @@ def initialize_models():
 # PREDICTION FUNCTION (required by LIME)
 # ============================================================================
 
-def predict_proba_batch(texts, batch_size=32):
+def predict_proba_batch(texts, batch_size=4):  # Smaller batch → less peak RAM on t2.micro
     """
     Predict probabilities for a batch of texts.
     Returns: numpy array of shape (n_samples, 2)

@@ -15,14 +15,24 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - TRANSFORMERS_CACHE=/app/.cache/huggingface
+      # t2.micro optimizations: reduce peak memory usage
+      - OMP_NUM_THREADS=1
+      - TOKENIZERS_PARALLELISM=false
     volumes:
       - hf_cache:/app/.cache/huggingface   # Persist downloaded model across restarts
+    # ── Memory limits for t2.micro (1 GB RAM + 4 GB swap) ──────────────────
+    deploy:
+      resources:
+        limits:
+          memory: 900M      # Hard cap — container uses swap beyond this
+        reservations:
+          memory: 512M      # Guaranteed minimum reservation
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
       interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s   # Give model time to download on first run
+      timeout: 30s
+      retries: 10
+      start_period: 300s   # Extended: slow t2.micro + first-time model download
     networks:
       - fake_news_net
 
